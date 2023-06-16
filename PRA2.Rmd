@@ -1,0 +1,536 @@
+---
+title: "PRACTICA 2. TIPOLOGIA Y CICLO DE VIDA DE LOS DATOS"
+author: "JUAN LARA CHUPS Y ORIOL MÖSSINGER"
+date: "2023-06-13"
+output:
+  html_document:
+    highlight: default
+    number_sections: yes
+    theme: cosmo
+    toc: yes
+    toc_depth: 2
+  pdf_document:
+    highlight: zenburn
+    toc: yes
+  word_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Configuración entorno R
+
+```{r, echo = FALSE, message = FALSE, warning = FALSE}
+if (!"lattice" %in% installed.packages()) install.packages("lattice")
+if (!"caret" %in% installed.packages()) install.packages("caret")
+if (!"nnet" %in% installed.packages()) install.packages("nnet")
+if (!"e1071" %in% installed.packages()) install.packages("e1071")
+if (!"foreach" %in% installed.packages()) install.packages("foreach")
+if (!"glmnet" %in% installed.packages()) install.packages("glmnet")
+if (!"kableExtra" %in% installed.packages()) install.packages("kableExtra")
+if (!"broom" %in% installed.packages()) install.packages("broom")
+if (!"knitr" %in% installed.packages()) install.packages("knitr")
+if (!"tree" %in% installed.packages()) install.packages("tree")
+if (!"randomForest" %in% installed.packages()) install.packages("randomForest")
+if (!"rpart" %in% installed.packages()) install.packages("rpart")
+if (!"rpart.plot" %in% installed.packages()) install.packages("rpart.plot")
+if (!"patchwork" %in% installed.packages()) install.packages("patchwork")
+if (!"pROC" %in% installed.packages()) install.packages("pROC")
+if (!"cowplot" %in% installed.packages()) install.packages("cowplot")
+if (!"questionr" %in% installed.packages()) install.packages("questionr")
+if (!"ggalluvial" %in% installed.packages()) install.packages("ggalluvial")
+if (!"scales" %in% installed.packages()) install.packages("scales")
+if (!"tidyverse" %in% installed.packages()) install.packages("tidyverse")
+if (!"plyr" %in% installed.packages()) install.packages("plyr")
+if (!"NeuralNetTools" %in% installed.packages()) install.packages("NeuralNetTools")
+if (!"cramer" %in% installed.packages()) install.packages("cramer")
+
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(plyr)
+library(scales)
+library(ggplot2)
+library(ggalluvial)
+library(questionr)
+library(cowplot)
+library(patchwork)
+library(pROC)
+library(rpart)
+library(rpart.plot)
+library(caret)
+library(randomForest)
+library(tree)
+library(knitr)
+library(broom)
+library(kableExtra)
+library(lattice)
+library(caret)
+library(nnet)
+library(e1071)
+library(foreach)
+library(glmnet)
+library (NeuralNetTools)
+library(cramer)
+```
+
+En este apartado aunque en PDF y html no se vea nada, en el fichero rmd que hemos usado para hacer esta practica se veían todos los instaladores y todas las librerías.
+
+# Descripción del dataset
+
+A través del portal de datasets llamado Kaggle hemos encontrado el siguiente dataset para realizar esta práctica:
+
+<https://www.kaggle.com/datasets/uciml/adult-census-income>
+
+El conjunto de datos "adult.csv" es importante porque proporciona información relevante sobre los ingresos de los individuos en diferentes países del mundo y permite abordar diversas preguntas y problemas relacionados con la predicción de los ingresos altos o bajos de una persona. Algunas de las características clave del conjunto de datos incluyen:
+
+-   Edad: La edad del individuo.
+
+-   Educación: El nivel de educación alcanzado por el individuo.
+
+-   Ocupación: El tipo de ocupación del individuo.
+
+-   Estado civil: El estado civil del individuo.
+
+-   País de origen: El país de origen del individuo.
+
+-   Género: El género del individuo.
+
+-   Raza: La raza del individuo.
+
+-   Ganancias de capital: Las ganancias de capital del individuo.
+
+-   Pérdidas de capital: Las pérdidas de capital del individuo.
+
+-   Horas de trabajo: El número de horas de trabajo por semana.
+
+El problema que este conjunto de datos pretende abordar es la predicción de si un individuo tiene ingresos altos o bajos basándose en las características mencionadas anteriormente. Esto puede ser útil para comprender los factores que influyen en los ingresos y para identificar patrones o tendencias que puedan ser utilizados en la toma de decisiones relacionadas con la política, el marketing, la segmentación de mercado, entre otros.
+
+# Integración y selección
+
+Cargamos el dataset adult.csv:
+
+```{r}
+library(readr)
+df <- read_csv("adult.csv")
+```
+
+Mostramos las variables que incluyen el dataset importado:
+
+```{r}
+names(df)
+```
+
+Una vez mostradas las variables, renombraremos las variables para que sean más fáciles de gestionar:
+
+```{r}
+names(df)=c("edad","clas_trab","n_personas","educacion","id_educacion","estado_civil","ocupacion","relacion","raza","sexo","ganancias","perdidas","horas_semana","nacion","ingresos")
+names(df)
+```
+
+# Limpieza de los datos
+
+Empezamos la limpieza de los datos revisando el tipo de dato que es cada variable:
+
+```{r}
+str(df)
+```
+
+Mostramos las principales características de cada variable:
+
+```{r}
+summary(df)
+```
+
+Después de las dos previews anteriores, se observa que los datos de ingresos y id_educación se encuentran en formato númerico cuando deberían ser tratados como factores, realizamos el reemplazo:
+
+```{r}
+df[, c("id_educacion","ingresos")] <- lapply(df[, c("id_educacion","ingresos")], as.factor)
+levels(df$ingresos)<-c('bajos','altos')
+ddply(df, .(ingresos), nrow)
+```
+
+Comprobamos que se han realizado correctamente los cambios:
+
+```{r}
+str(df)
+```
+
+```{r}
+summary(df)
+```
+
+## Comprobación de resultados que contengan 0 o vacíos
+
+Comprobamos si hay algún NA en el dataset:
+
+```{r}
+na <- any(is.na(df))
+na
+```
+
+Comprobamos donde están los valores igual a 0:
+
+```{r}
+# Identificar las columnas con valores cero y contar los ceros por columna
+columnas_cero <- apply(df == 0, 2, sum)
+
+# Filtrar las columnas con al menos un cero
+columnas_con_ceros <- columnas_cero[columnas_cero > 0]
+
+# Imprimir los resultados
+if (length(columnas_con_ceros) > 0) {
+  print("Las siguientes columnas contienen valores cero:")
+  print(names(columnas_con_ceros))
+  print("Cantidad de ceros por columna:")
+  print(columnas_con_ceros)
+} else {
+  print("No se encontraron valores cero en ninguna columna.")
+}
+```
+
+En este caso, al ser en las columnas de ganancias y perdidas no debemos preocuparnos ya que es perfectamente plausible que existan.
+
+Comprobamos que no haya celdas vacías:
+
+```{r}
+vacios <- sum(df == '')
+vacios
+```
+
+## Identificación de valores extremos
+
+Podemos plantear un valor extremo cómo son las horas semanales:
+
+```{r}
+boxplot(df$horas_semana)
+```
+
+En este caso tenemos personas que trabajan más de 80 horas semanales, el doble de lo que permite el estatuto de los trabajadores de muchos países. Aunque sea un valor extremo no debemos quitarlo del dataset debido a que es un elemento realista.
+
+# Análisis de los datos
+
+## Selección de los grupos de datos que se quieren analizar/comparar
+
+### Comparativa estudios vs país
+
+Empezamos este apartado realizando una visualización de la educación según la nación de la persona y educación:
+
+```{r}
+ggplot(data = df, aes(x = educacion, y = nacion, fill = ingresos)) + geom_count(aes(color = ..n..,size = ..n..))+ 
+  facet_wrap(~ingresos,ncol = 10)+labs(title='ingresos',
+       subtitle='Distribución del salario por país y educación',
+       x='', y='')+theme(axis.text.x = element_text(angle = 90)) +(guides(color = 'legend'))#gráfico no incluído por extensión del documento.
+```
+
+Como podemos observar de una forma poco detallada, los datos con los ingresos más bajos y más altos los mantienen los estadounidenses.
+
+Debido a los distintos tipos que existen en las variables educación y nación no se observan bien los datos. Por tanto, agrupamos las naciones por continente y la educación por nivel educativo conseguido.
+
+Vemos el listado total de países del dataset:
+
+```{r}
+valores_unicos <- unique(df$nacion)
+print(valores_unicos)
+```
+
+Factorizamos los países por continentes y creamos la nueva variable llamada continente:
+
+```{r}
+df$continente = df$nacion
+df$continente = gsub("Cambodia","Asia",df$continente)
+df$continente = gsub("Canada","N_America",df$continente)
+df$continente = gsub("China","Asia",df$continente)
+df$continente = gsub("Hong","Asia",df$continente)
+df$continente = gsub("India","Asia",df$continente)
+df$continente = gsub("Iran","Asia",df$continente)
+df$continente = gsub("Japan","Asia",df$continente)
+df$continente = gsub("Laos","Asia",df$continente)
+df$continente = gsub("Philippines","Asia",df$continente)
+df$continente = gsub("Taiwan","Asia",df$continente)
+df$continente = gsub("Thailand","Asia",df$continente)
+df$continente = gsub("Vietnam","Asia",df$continente)
+df$continente = gsub("Cuba","N_America",df$continente)
+df$continente = gsub(" Outlying-US(Guam-USVI-etc)","N_America",df$continente)
+df$continente = gsub("United-States","N_America",df$continente)
+df$continente = gsub("Columbia","S_America",df$continente)
+df$continente = gsub("Dominican-Republic","S_America",df$continente)
+df$continente = gsub("Ecuador","S_America",df$continente)
+df$continente = gsub("El-Salvador","S_America",df$continente)
+df$continente = gsub("Guatemala","S_America",df$continente)
+df$continente = gsub("Haiti","S_America",df$continente)
+df$continente = gsub("Honduras","S_America",df$continente)
+df$continente = gsub("Jamaica","S_America",df$continente)
+df$continente = gsub("Mexico","N_America",df$continente)
+df$continente = gsub("Nicaragua","S_America",df$continente)
+df$continente = gsub("Peru","S_America",df$continente)
+df$continente = gsub("Puerto-Rico","S_America",df$continente)
+df$continente = gsub("Trinadad&Tobago","S_America",df$continente)
+df$continente = gsub("England","Europe",df$continente)
+df$continente = gsub("France","Europe",df$continente)
+df$continente = gsub("Germany","Europe",df$continente)
+df$continente = gsub("Greece","Europe",df$continente)
+df$continente = gsub("Hungary","Europe",df$continente)
+df$continente = gsub("Ireland","Europe",df$continente)
+df$continente = gsub("Italy","Europe",df$continente)
+df$continente = gsub("Poland","Europe",df$continente)
+df$continente = gsub("Portugal","Europe",df$continente)
+df$continente = gsub("Scotland","Europe",df$continente)
+df$continente = gsub("Yugoslavia","Europe",df$continente)
+df$continente = gsub("South","Africa",df$continente)
+df$continente = gsub("Holand-Netherlands","Europe",df$continente)
+df$continente = as.factor(df$continente)
+
+```
+
+Eliminamos los valores que contengan un ? en la nueva variable contiente:
+
+```{r}
+df = subset(df, continente != "?")
+```
+
+Comprobamos que se hayan creado los continentes correctamente:
+
+```{r}
+valores_unicos <- unique(df$continente)
+print(valores_unicos)
+```
+
+Antes de factorizar los estudios, pasamos a reconocerlos:
+
+```{r}
+valores_unicos <- unique(df$educacion)
+print(valores_unicos)
+```
+
+Factorizamos los estudios:
+
+```{r}
+df$educacion2 = df$educacion
+df$educacion2 = gsub("10th","obligatoria",df$educacion2)
+df$educacion2 = gsub("11th","obligatoria",df$educacion2)
+df$educacion2 = gsub("12th","obligatoria",df$educacion2)
+df$educacion2 = gsub("1st-4th","obligatoria",df$educacion2)
+df$educacion2 = gsub("5th-6th","obligatoria",df$educacion2)
+df$educacion2 = gsub("7th-8th","obligatoria",df$educacion2)
+df$educacion2 = gsub("9th","obligatoria",df$educacion2)
+df$educacion2 = gsub("Assoc-acdm","universidad",df$educacion2)
+df$educacion2 = gsub("Assoc-voc","universidad",df$educacion2)
+df$educacion2 = gsub("Bachelors","universidad",df$educacion2)
+df$educacion2 = gsub("Doctorate","doctor",df$educacion2)
+df$educacion2 = gsub("HS-grad","bachiller",df$educacion2)
+df$educacion2 = gsub("Masters","master",df$educacion2)
+df$educacion2 = gsub("Preschool","obligatoria",df$educacion2)
+df$educacion2 = gsub("Prof-school","bachiller",df$educacion2)
+df$educacion2 = gsub("Some-college","bachiller",df$educacion2)
+df$educacion2 = as.factor(df$educacion2)
+
+```
+
+Con ambas variables factorizadas, comprobamos cómo queda el nuevo análisis:
+
+```{r}
+ggplot(data = df, aes(x = educacion2, y = continente, fill = ingresos)) + geom_count(aes(color = ..n..,size = ..n..))+ 
+  facet_wrap(~ingresos,ncol = 10)+labs(title='Salario',
+       subtitle='Distribución del salario por continente y educación',
+       x='', y='')+theme(axis.text.x = element_text(angle = 90)) +(guides(color = 'legend'))
+```
+
+## Comprobación de la normalidad y homogeneidad de la varianza
+
+Comprobamos la normalidad de educacion_numerica y horas_semana para para ingresos altos e ingresos bajos:
+
+```{r}
+df$educacion_numerica = df$id_educacion
+df$educacion_numerica = as.numeric(df$educacion_numerica)
+df_bajos <- df[df$ingresos =="bajos",]
+df_altos <- df[df$ingresos =="altos",]
+```
+
+```{r}
+hist(df_altos$horas_semana, breaks = "Sturges", col = "lightblue", border = "white")
+
+# Gráfico de probabilidad normal (QQ plot)
+qqnorm(df_altos$horas_semana)
+qqline(df_altos$horas_semana)
+```
+
+```{r}
+hist(df_bajos$horas_semana, breaks = "Sturges", col = "lightblue", border = "white")
+
+# Gráfico de probabilidad normal (QQ plot)
+qqnorm(df_bajos$horas_semana)
+qqline(df_bajos$horas_semana)
+```
+
+```{r}
+hist(df_bajos$educacion_numerica, breaks = "Sturges", col = "lightblue", border = "white")
+
+# Gráfico de probabilidad normal (QQ plot)
+qqnorm(df_bajos$educacion_numerica)
+qqline(df_bajos$educacion_numerica)
+```
+
+```{r}
+hist(df_altos$educacion_numerica, breaks = "Sturges", col = "lightblue", border = "white")
+
+# Gráfico de probabilidad normal (QQ plot)
+qqnorm(df_altos$educacion_numerica)
+qqline(df_altos$educacion_numerica)
+```
+
+Realizamos el test de varianza de las variables que hemos revisado la normalidad previamente:
+
+```{r}
+var.test( df_bajos$educacion_numerica, df_altos$educacion_numerica)
+```
+
+```{r}
+var.test( df_bajos$horas_semana, df_altos$horas_semana)
+```
+
+## Pruebas estadísticas
+
+### Test Chi Cuadrado
+
+Antes de hacer el test hay que factorizar las variables:
+
+```{r}
+df$clas_trab = as.factor(df$clas_trab)
+
+df$estado_civil = as.factor(df$estado_civil)
+
+df$ocupacion = as.factor(df$ocupacion)
+
+df$relacion = as.factor(df$relacion)
+
+df$raza = as.factor(df$raza)
+
+df$sexo = as.factor(df$sexo)
+
+
+df$edad_fact = factor(cut(df$edad,c(15,25,45,65,100),labels = c("joven","adulto_joven","adulto","anciano")))
+
+df$horas_semana_fact = factor(cut(df$horas_semana,c(0,20,40,60,99),labels = c("parcial","completa","exceso_leve","exceso_grave")))
+
+df$n_personas_fact = factor(cut(df$edad,c(0,250,500,1000,1500),labels = c("poca","normal","elevada","excesiva")))
+
+df$ganancias_fact = factor(cut(df[["ganancias"]],c(-Inf,0,median(df[["ganancias"]][df[["ganancias"]]>0]),Inf),labels = c("Ninguno","Bajo","Alto")))
+
+df$perdidas_fact = factor(cut(df[["perdidas"]],c(-Inf,0,median(df[["perdidas"]][df[["perdidas"]]>0]),Inf),labels = c("Ninguno","Bajo","Alto")))
+```
+
+```{r, warning = FALSE}
+library(tidyr)
+
+testt<-tidy(chiT<-chisq.test(table(df$ingresos,df$sexo)))
+testt<-rbind(testt,tidy(chiT2<-chisq.test(table(df$ingresos,df$raza))))
+testt<-rbind(testt,tidy(chiT3<-chisq.test(table(df$ingresos,df$educacion2))))
+testt<-rbind(testt,tidy(chiT4<-chisq.test(table(df$ingresos,df$estado_civil))))
+testt<-rbind(testt,tidy(chiT5<-chisq.test(table(df$ingresos,df$ocupacion))))
+testt<-rbind(testt,tidy(chiT6<-chisq.test(table(df$ingresos,df$relacion))))
+testt<-rbind(testt,tidy(chiT7<-chisq.test(table(df$ingresos,df$continente))))
+testt<-rbind(testt,tidy(chiT8<-chisq.test(table(df$ingresos,df$horas_semana_fact))))
+testt<-rbind(testt,tidy(chiT9<-chisq.test(table(df$ingresos,df$n_personas_fact))))
+testt<-rbind(testt,tidy(chiT10<-chisq.test(table(df$ingresos,df$ganancias_fact))))
+testt<-rbind(testt,tidy(chiT11<-chisq.test(table(df$ingresos,df$perdidas_fact))))
+testt<-rbind(testt,tidy(chiT12<-chisq.test(table(df$ingresos,df$edad_fact))))
+testt<-rbind(testt,tidy(chiT13<-chisq.test(table(df$ingresos,df$clas_trab))))
+
+testt$variable<-c("sexo","raza","educacion","estado civil","ocupacion","relacion","continente","horas semana","personas representadas","ganacias","perdidas","edad", "clase trabajo")
+testt
+```
+
+Cómo podemos observar la hipótesis nula era que las variables eran independientes pero como da un valor menor de 0,05 significa que son independientes.
+
+### Test V Cramer
+
+```{r, warning = FALSE}
+c1<-questionr::cramer.v(table(df$ingresos,df$sexo))
+c2<-questionr::cramer.v(table(df$ingresos,df$raza))
+c3<-questionr::cramer.v(table(df$ingresos,df$educacion2))
+c4<-questionr::cramer.v(table(df$ingresos,df$estado_civil))
+c5<-questionr::cramer.v(table(df$ingresos,df$ocupacion))
+c6<-questionr::cramer.v(table(df$ingresos,df$relacion))
+c7<-questionr::cramer.v(table(df$ingresos,df$continente))
+c8<-questionr::cramer.v(table(df$ingresos,df$horas_semana))
+c10<-questionr::cramer.v(table(df$ingresos,df$ganancias))
+c11<-questionr::cramer.v(table(df$ingresos,df$perdidas))
+c12<-questionr::cramer.v(table(df$ingresos,df$edad))
+c13<-questionr::cramer.v(table(df$ingresos,df$clas_trab))
+```
+
+```{r}
+library(kableExtra)
+cramer<-list(c1,c2,c3,c4,c5,c6,c7,c8)
+cramer2 <- as.data.frame(cramer,col.names = c("sexo", "raza", "educacion","estado_civil","ocupacion","relacion","continente","horas_semana"))
+
+kbl(cramer2) %>%
+    kable_styling()
+
+
+cramer3<-list(c10,c11,c12,c13)
+cramer4 <- as.data.frame(cramer3,col.names = c("ganancia_capital","perdida_capital","edad","clase_trabajador"))
+kbl(cramer4) %>%
+    kable_styling()
+```
+
+### Árbol de decisión
+
+```{r}
+modelo_arbol <- rpart(ingresos ~ edad + clas_trab + educacion2 + estado_civil + ocupacion + relacion + raza + sexo + ganancias + perdidas + horas_semana + continente,
+                data = df,
+                method="class")
+
+rpart.plot(modelo_arbol,box.col=c("red","blue"))
+prediccion_arb <- predict(modelo_arbol, newdata = df, type = "class")
+confusionMatrix(prediccion_arb, df[["ingresos"]])
+```
+
+El modelo árbol también da buenos resultados con un accuracy por el que, el 84.72% de las veces, la clasificación que hace es correcta. Observando el gráfico, vemos que en principio las variables que más aportan al modelo de árbol son la relacion, la ocupación que tienen, la ganancia de capital y la edad.
+
+### Random forest
+
+```{r}
+df_forest<-subset(df, select = c(edad, clas_trab, educacion2, estado_civil, ocupacion, relacion, raza, sexo, ganancias, perdidas, horas_semana, continente, ingresos))
+set.seed(101)
+df_tree<- nrow(df_forest)
+tree_train <- round(df_tree*0.8)
+indices_tree <- sample(1:df_tree , size=tree_train)
+datos_train_tree <- df_forest[indices_tree,]
+datos_test_tree <- df_forest[-indices_tree,]
+
+modelo_randomf <- randomForest(ingresos ~ edad + clas_trab + educacion2 + estado_civil + ocupacion + relacion + raza + sexo + ganancias + perdidas + horas_semana + continente,data=datos_train_tree)
+
+predicciones <- predict(modelo_randomf, datos_test_tree)
+mc <- with(datos_test_tree,table(predicciones, ingresos))
+
+accuracyRF<-100 * sum(diag(mc)) / sum(mc)
+
+accuracyRF
+
+varImpPlot(modelo_randomf)
+```
+
+Con el método de predicción random forest hemos conseguido un accuracy de aprox un 86%, por lo que podemos decir que la iteración de n modelos de árbol como el que hemos hecho, da un resultado bastante mejor que el de uno solo.
+
+# Resolución del problema
+
+Tras realizar el análisis de este dataset llegamos a las siguientes conclusiones:
+
+-   Utilizando el Teorema del límite central hemos comprobado que las variables años de educación y horas trabajadas por semana, tanto en los grupos con ingresos mayores a 50k y menores, se comportan como distribuciones normales. A su vez, no existe homogeneidad en las varianzas de estas dos variables porque la p-value es menor a 0.05.
+
+-   Tras realizar las pruebas de Chi Cuadrado podemos afirmar que existen variables independientes explicativas a la variable ingreso (income).
+
+-   El resultado del test de Cramer nos indica que las variables independientes que más explican el ingreso son relación, estado civil y ganancias.
+
+-   Realizando un árbol de decisión, hemos llegado a un nivel de precisión del 84.72% lo que significa que el 84.72% de las veces el modelo clasifica correctamente la variable objetivo ingreso.
+
+-   Finalmente, realizando un random forest hemos conseguido aumentar la precisión del modelo a un 86%. Por lo que este modelo finalmente es el más preciso.
+
+| Contribuciones              | Integrantes  |
+|-----------------------------|--------------|
+| Investigación previa        | J.L.C, O.M.S |
+| Redacción de las respuestas | J.L.C, O.M.S |
+| Desarrollo del código       | J.L.C, O.M.S |
+| Participación en el vídeo   | J.L.C, O.M.S |
